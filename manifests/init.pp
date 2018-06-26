@@ -16,15 +16,17 @@
 #
 # === Authors
 #
+# Tobias Knipping
 # CJ Estel
 #
 # === Credits
 #
-# This module is loosely based on
-# https://bitbucket.org/landcareresearch/puppet-pgbouncer
+# This module is based on
+# https://github.com/covermymeds/puppet-pgbouncer.git
 #
 # === Copyright
 #
+# Tobias Knipping, TK-Schulsoftware GmbH & Co. KG
 # CoverMyMeds
 #
 # === License
@@ -80,29 +82,30 @@
 #
 # deb_default_file is a file specific to ubuntu that loads a startup file
 #
+
 class pgbouncer (
-  $userlist                   = $pgbouncer::params::userlist,
-  $databases                  = $pgbouncer::params::databases,
-  $paramtmpfile               = $pgbouncer::params::paramtmpfile,
-  $default_config_params      = $pgbouncer::params::default_config_params,
-  $config_params              = $pgbouncer::params::config_params,
-  $pgbouncer_package_name     = $pgbouncer::params::pgbouncer_package_name,
-  $conffile                   = $pgbouncer::params::conffile,
-  $userlist_file              = $pgbouncer::params::userlist_file,
-  $deb_default_file           = $pgbouncer::params::deb_default_file,
-  $service_start_with_system  = $pgbouncer::params::service_start_with_system,
-  $user                       = $pgbouncer::params::user,
-  $group                      = $pgbouncer::params::group,
-  $require_repo               = $pgbouncer::params::require_repo,
-  $userlist_from_mkauth       = $pgbouncer::params::userlist_from_mkauth,
-  $mkauth                     = $pgbouncer::params::mkauth,
-  $online_reload              = $pgbouncer::params::online_reload,
+  Array $userlist                    = $pgbouncer::params::userlist,
+  Array[Hash] $databases             = $pgbouncer::params::databases,
+  String $paramtmpfile               = $pgbouncer::params::paramtmpfile,
+  Optional $default_config_params    = $pgbouncer::params::default_config_params,
+  Hash $config_params                = $pgbouncer::params::config_params,
+  String $pgbouncer_package_name     = $pgbouncer::params::pgbouncer_package_name,
+  String $conffile                   = $pgbouncer::params::conffile,
+  String $userlist_file              = $pgbouncer::params::userlist_file,
+  String $deb_default_file           = $pgbouncer::params::deb_default_file,
+  Boolean $service_start_with_system = $pgbouncer::params::service_start_with_system,
+  String $user                       = $pgbouncer::params::user,
+  String $group                      = $pgbouncer::params::group,
+  Boolean $require_repo              = $pgbouncer::params::require_repo,
+  Boolean $userlist_from_mkauth      = $pgbouncer::params::userlist_from_mkauth,
+  String $mkauth                     = $pgbouncer::params::mkauth,
+  Boolean $online_reload             = $pgbouncer::params::online_reload,
 ) inherits pgbouncer::params {
 
   # merge the defaults and custom params
   $load_config_params = merge($default_config_params, $config_params)
 
-  anchor{'pgbouncer::begin':}
+  anchor { 'pgbouncer::begin': }
 
   # Same package name for both redhat based and debian based
   case $::osfamily {
@@ -111,20 +114,21 @@ class pgbouncer (
         true  => [ Class['postgresql::repo::yum_postgresql_org'], Anchor['pgbouncer::begin'] ],
         false => Anchor['pgbouncer::begin'],
       }
-      package{ $pgbouncer_package_name:
+      package { $pgbouncer_package_name:
         ensure  => installed,
         require => $package_require,
       }
     }
     'FreeBSD', 'Debian': {
-      package{ $pgbouncer_package_name:
-        ensure  => installed,
+      package { $pgbouncer_package_name:
+        ensure => installed,
       }
     }
     default: {
       fail("Module ${module_name} is not supported on ${::operatingsystem}")
     }
   }
+
   # verify we have config file managed by concat
   concat { $conffile:
     ensure => present,
@@ -151,7 +155,7 @@ class pgbouncer (
 
   # check if debian
   if $::osfamily == 'Debian' {
-    file{ $deb_default_file:
+    file { $deb_default_file:
       ensure  => file,
       source  => 'puppet:///modules/pgbouncer/pgbouncer',
       require => Package[$pgbouncer_package_name],
@@ -159,8 +163,8 @@ class pgbouncer (
     }
   }
   # check if we have an authlist
-  if ! empty($userlist) {
-    pgbouncer::userlist{ 'pgbouncer_module_userlist':
+  if !empty($userlist) {
+    pgbouncer::userlist { 'pgbouncer_module_userlist':
       auth_list    => $userlist,
       paramtmpfile => $paramtmpfile,
     }
@@ -172,23 +176,23 @@ class pgbouncer (
       mode   => '0770',
       owner  => $::pgbouncer::user,
       group  => $::pgbouncer::postgres_user,
-    } ->
-    file { $::pgbouncer::mkauth:
+    }
+    -> file { $::pgbouncer::mkauth:
       ensure => present,
       mode   => '0755',
       owner  => 'root',
-    } ->
-    exec { 'pgbouncer_mkauth':
+    }
+    -> exec { 'pgbouncer_mkauth':
       command => "${::pgbouncer::mkauth} ${::pgbouncer::userlist_file}.mkauth dbname=postgres",
       user    => $::pgbouncer::postgres_user,
       unless  => "${::pgbouncer::mkauth} ${::pgbouncer::userlist_file}.mkauth.tmp dbname=postgres ; /usr/bin/diff -q ${::pgbouncer::userlist_file}.mkauth ${::pgbouncer::userlist_file}.mkauth.tmp",
-    } ->
-    file { "${::pgbouncer::userlist_file}.mkauth":
+    }
+    -> file { "${::pgbouncer::userlist_file}.mkauth":
       ensure => present,
       mode   => '0600',
       owner  => $::pgbouncer::postgres_user,
-    } ->
-    concat::fragment { 'pgbouncer_mkauth_tmpfile':
+    }
+    -> concat::fragment { 'pgbouncer_mkauth_tmpfile':
       target => $::pgbouncer::userlist_file,
       source => "${::pgbouncer::userlist_file}.mkauth",
       order  => '02',
@@ -210,8 +214,8 @@ class pgbouncer (
   }
 
   # check if we have a database list and create entries
-  if ! empty($databases) {
-    pgbouncer::databases{ 'pgbouncer_module_databases':
+  if !empty($databases) {
+    pgbouncer::databases { 'pgbouncer_module_databases':
       databases => $databases,
     }
   }
@@ -226,13 +230,13 @@ class pgbouncer (
   }
 
   service { 'pgbouncer':
-    ensure         => running,
-    enable         => $service_start_with_system,
-    restart        => $reload_command,
-    subscribe      => Concat[$userlist_file, $conffile],
+    ensure    => running,
+    enable    => $service_start_with_system,
+    restart   => $reload_command,
+    subscribe => Concat[$userlist_file, $conffile],
   }
 
-  anchor{'pgbouncer::end':
+  anchor { 'pgbouncer::end':
     require => Service['pgbouncer'],
   }
 }

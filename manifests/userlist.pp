@@ -2,9 +2,9 @@
 #
 # defined type that can be used to create the userlist in the auth_file
 #
-define pgbouncer::userlist(
-  $auth_list = [],
-  $paramtmpfile = '',
+define pgbouncer::userlist (
+  Array $auth_list     = [],
+  String $paramtmpfile = '',
 ) {
 
   validate_array($auth_list)
